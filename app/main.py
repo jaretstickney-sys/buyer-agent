@@ -1,13 +1,16 @@
+# main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.agent import BuyerAcquisitionAgent
-from app.config import CONFIG
+import os
+import requests
 
 app = FastAPI()
-agent = BuyerAcquisitionAgent()
-origins = ["https://gilded-seahorse-172ddf.netlify.app/", ]
 
-# Enable CORS so Netlify can post
+# === CORS SETUP ===
+origins = [
+    "https://gilded-seahorse-172ddf.netlify.app/""  
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  
@@ -16,15 +19,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# === HubSpot Config ===
+HUBSPOT_TOKEN = os.getenv("HUBSPOT_ACCESS_TOKEN")
+HUBSPOT_CONTACT_URL = "https://api.hubapi.com/crm/v3/objects/contacts"
+
+HEADERS = {
+    "Authorization": f"Bearer {HUBSPOT_TOKEN}",
+    "Content-Type": "application/json"
+}
+
+# === Lead Scoring Logic ===
+def score_lead(lead: dict):
+    score = 0
+    if lead.get("homeowner"):
+        score += 30
+    timeline = lead.get("timeline_months")
+    if timeline and timeline <= 6:
+        score += 40
+    if lead.get("city") in ["Boston", "Cambridge", "Newton", "Wellesley"]:
+        score += 30
+    return min(score, 100)
+
+# === HubSpot Submission ===
+def send_to_hubspot(lead: dict):
+    properties = {
+        "firstname": lead.get("first_name"),
+        "lastname": lead.get("last_name", ""),
+        "email": lead.get("email"),
+        "city": lead.get("city"),
+        "state": lead.get("state", ""),
+        "homeowner_status": "Homeowner" if lead.get("homeowner") else "Renter"
+    }
+    payload = {"properties": properties}
+
+    try:
+        response = requests.post(HUBSPOT_CONTACT_URL, headers=HEADERS, json=payload)
+        response.raise_for_status()
+        return {"hubspot": "success"}
+    except Exception as e:
+        print("HubSpot error:", e, getattr(e, "response", None))
+        return {"hubspot": "error", "details": str(e)}
+
+# === FastAPI Endpoint ===
 @app.post("/event")
 async def receive_lead(request: Request):
     data = await request.json()
     payload = data.get("payload")
     if not payload:
         return {"error": "No payload received"}
-    processed = agent.process_lead(payload)
-    return processed
 
-@app.get("/")
-async def root():
-    return {"status": "FastAPI agent is running"}
+    payload["score"] = score_lead(payload)
+    hubspot_result = send_to_hubspot(payload)
+    payload.update(hubspot_result)
+
+    return payload
+
+
