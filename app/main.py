@@ -5,11 +5,12 @@ from app.config import CONFIG
 
 app = FastAPI()
 agent = BuyerAcquisitionAgent()
+origins = ["https://gilded-seahorse-172ddf.netlify.app/", ]
 
 # Enable CORS so Netlify can post
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://gilded-seahorse-172ddf.netlify.app/"]  # Netlify URL,
+    allow_origins=origins  # Netlify URL,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
