@@ -23,3 +23,7 @@ async def receive_lead(request: Request):
         return {"error": "No payload received"}
     processed = agent.process_lead(payload)
     return processed
+
+@app.get("/")
+async def root():
+    return {"status": "FastAPI agent is running"}
