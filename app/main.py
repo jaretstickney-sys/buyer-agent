@@ -9,7 +9,7 @@ agent = BuyerAcquisitionAgent()
 # Enable CORS so Netlify can post
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CONFIG["allowed_origins"],
+    allow_origins=allow_origins=["https://gilded-seahorse-172ddf.netlify.app/"]  # Netlify URL,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
