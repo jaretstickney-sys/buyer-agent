@@ -8,7 +8,7 @@ app = FastAPI()
 
 # === CORS SETUP ===
 origins = [
-    "https://gilded-seahorse-172ddf.netlify.app/""  
+    "https://gilded-seahorse-172ddf.netlify.app/"  
 ]
 
 app.add_middleware(
