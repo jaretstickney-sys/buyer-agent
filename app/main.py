@@ -64,15 +64,18 @@ def send_to_hubspot(lead: dict):
 async def receive_lead(request: Request):
     data = await request.json()
     payload = data.get("payload")
-
     if not payload:
-        return {"error": "No payload received"}
+        return JSONResponse(content={"error": "No payload received"}, status_code=400)
 
     payload["score"] = score_lead(payload)
-    hubspot_result = send_to_hubspot(payload)
-    payload.update(hubspot_result)
 
-    return payload
+    try:
+        hubspot_result = send_to_hubspot(payload)
+        payload.update(hubspot_result)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+    return JSONResponse(content=payload)
 
 
 
