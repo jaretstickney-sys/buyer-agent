@@ -2,13 +2,15 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import os
-import requests
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from fastapi.responses import JSONResponse
+
+import os
+import requests
+
+app = FastAPI()
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -17,17 +19,17 @@ app.state.limiter = limiter
 def rate_limit_handler(request, exc):
     return JSONResponse(status_code=429, content={"error": "Too many requests"})
 
-app = FastAPI()
-
 # === CORS SETUP ===
-app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://gilded-seahorse-172ddf.netlify.app"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 # === HubSpot Config ===
@@ -49,46 +51,67 @@ def score_lead(lead: dict):
         score += 40
     if lead.get("city") in ["Boston", "Cambridge", "Newton", "Wellesley"]:
         score += 30
-    return min(score, 100)
+    return score
 
 # === HubSpot Submission ===
-def send_to_hubspot(lead: dict):
-    properties = {
-        "firstname": lead.get("first_name"),
-        "lastname": lead.get("last_name", ""),
-        "email": lead.get("email"),
-        "city": lead.get("city"),
-        "state": lead.get("state", ""),
-        "homeowner_status": "Homeowner" if lead.get("homeowner") else "Renter"
-    }
-    payload = {"properties": properties}
+def send_to_hubspot(payload):
+    token = os.getenv("HUBSPOT_TOKEN")
 
-    try:
-        response = requests.post(HUBSPOT_CONTACT_URL, headers=HEADERS, json=payload)
-        response.raise_for_status()
-        return {"hubspot": "success"}
-    except Exception as e:
-        print("HubSpot error:", e, getattr(e, "response", None))
-        return {"hubspot": "error", "details": str(e)}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    properties = {
+        "email": payload["email"],
+        "firstname": payload["first_name"],
+        "buyer_lead_score": payload["score"],
+        "timeline_months": payload["timeline_months"],
+        "is_homeowner": payload["homeowner"],
+        "target_city": payload["city"],
+        "property_interest": "19 Castle Rd, Narragansett RI"
+    }
+
+    res = requests.post(
+        "https://api.hubapi.com/crm/v3/objects/contacts",
+        json={"properties": properties},
+        headers=headers
+    )
+
+    return res.json()
 
 # === FastAPI Endpoint ===
 
 @app.post("/event")
+@limiter.limit("5/minute")
 async def receive_lead(request: Request):
     data = await request.json()
     payload = data.get("payload")
+
     if not payload:
-        return JSONResponse(content={"error": "No payload received"}, status_code=400)
+        return {"error": "No payload received"}
+
+    # Honeypot check
+    if payload.get("company"):
+        return {"status": "ignored"}
+
+    # Required fields
+    for field in ["email", "first_name", "city"]:
+        if not payload.get(field):
+            return {"error": f"Missing field: {field}"}
 
     payload["score"] = score_lead(payload)
+    hubspot_result = send_to_hubspot(payload)
 
-    try:
-        hubspot_result = send_to_hubspot(payload)
-        payload.update(hubspot_result)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+    return {
+        "status": "ok",
+        "score": payload["score"],
+        "hubspot": hubspot_result
+    }
 
-    return JSONResponse(content=payload)
+@app.get("/")
+def health():
+    return {"status": "FastAPI agent is running"}
 
 
 
