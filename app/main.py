@@ -60,8 +60,8 @@ def send_to_hubspot(lead: dict):
 
 # === FastAPI Endpoint ===
 @app.post("/event")
-async def receive_lead(request: Request):
-data = await request.json()
+    async def receive_lead(request: Request):
+    data = await request.json()
     payload = data.get("payload")
     if not payload:
         return {"error": "No payload received"}
