@@ -59,10 +59,12 @@ def send_to_hubspot(lead: dict):
         return {"hubspot": "error", "details": str(e)}
 
 # === FastAPI Endpoint ===
+
 @app.post("/event")
-    async def receive_lead(request: Request):
+async def receive_lead(request: Request):
     data = await request.json()
     payload = data.get("payload")
+
     if not payload:
         return {"error": "No payload received"}
 
@@ -71,6 +73,7 @@ def send_to_hubspot(lead: dict):
     payload.update(hubspot_result)
 
     return payload
+
 
 
 
