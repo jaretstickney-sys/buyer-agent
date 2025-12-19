@@ -7,17 +7,15 @@ import requests
 app = FastAPI()
 
 # === CORS SETUP ===
-origins = [
-    "https://gilded-seahorse-172ddf.netlify.app/"  
-]
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # === HubSpot Config ===
 HUBSPOT_TOKEN = os.getenv("HUBSPOT_ACCESS_TOKEN")
